@@ -5,7 +5,7 @@ from langchain_core.documents import Document
 from langchain_text_splitters import MarkdownHeaderTextSplitter
 
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional, TypedDict
+from typing import List, Dict, Optional, TypedDict, NamedTuple
 from bs4 import BeautifulSoup, NavigableString, Tag
 from datetime import datetime
 from uuid import uuid4
@@ -326,7 +326,7 @@ def parse_markdown(
     headers_to_split_on: Optional[List[tuple]] = None,
     return_each_line: bool = True,
     create_at: Optional[str] = None,
-    create_by: str = "AI4Research"
+    create_by: str = "arxiv-daily"
 ) -> List[Document]:
     """
     Parse a Markdown file into a list of LangChain Document objects with enriched metadata.
@@ -392,3 +392,54 @@ def parse_markdown(
 
     logger.info(f"Parsed {len(documents)} chunks'")
     return documents
+
+class TocEntry(NamedTuple):
+    num: str
+    title: str
+
+def generate_toc(docs: List[Document]) -> List[TocEntry]:
+    """
+    Generate a hierarchical table of contents (TOC) from document headers (supports levels 1–6).
+
+    Args:
+        docs: List of Document objects containing header metadata.
+              
+    Returns:
+        List of TocEntry objects representing the hierarchical TOC
+    """
+    toc: List[TocEntry] = []  # Final list of TOC entries
+    # Counters for heading levels (index 0 = Header 1, index 5 = Header 6)
+    counters = [0, 0, 0, 0, 0, 0]
+    # Track seen titles per level to avoid duplicates
+    seen: Dict[int, set] = {level: set() for level in range(1, 7)}
+    
+    # Process all documents in order
+    for doc in docs:
+        header = doc.metadata.get("header", {})
+        # Iterate through all header fields in the metadata
+        for key, title in header.items():
+            # Extract heading level from key (e.g., "Header 3" → 3)
+            level = int(key.split()[-1])
+
+            # Skip if this exact title has already been processed at this level
+            if title in seen[level]:
+                continue
+
+            # Increment counter for the current heading level
+            counters[level - 1] += 1
+
+            # Reset all counters for deeper levels (level+1 and beyond)
+            for lower_level in range(level, 6):
+                counters[lower_level] = 0
+
+            # Record this title as seen at its level to prevent future duplicates
+            seen[level].add(title)
+
+            # Build the hierarchical number string (e.g., "1.2.3")
+            num = ".".join(str(counters[i]) for i in range(level))
+
+            entry = TocEntry(num=num, title=title)
+            # Append the TOC entry
+            toc.append(entry)
+    return toc
+
