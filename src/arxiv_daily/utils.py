@@ -3,8 +3,8 @@ Module to fetch and parse daily arXiv updates for a specified channel.
 """
 
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional, Set
-from bs4 import BeautifulSoup
+from typing import List, Dict, Optional
+from bs4 import BeautifulSoup, NavigableString, Tag
 from datetime import datetime
 import requests
 import logging
@@ -201,101 +201,106 @@ def get_daily_arxiv_updates(channel: str = "astro-ph") -> List[arXivItem]:
     return articles
 
 
-class Chunk(BaseModel):
+LTX_TAG_SKIP_CLASSES = {
+    "ltx_tag_section",
+    "ltx_tag_subsection",
+    "ltx_tag_subsubsection",
+}
+
+def parse_ltx_para(tag: Tag) -> str:
     """
-    Represents a logical segment (e.g., paragraph, subsection) of a paper.
-    """
-    section: Optional[str] = Field(None, description="Name of the top-level section this chunk belongs to (e.g., 'Introduction').")
-    paragraph: Optional[str] = Field(None, description="paragraph")
-    content: str = Field(default="", description="The actual textual content of the chunk.")
-    metadata: dict = Field(default_factory=dict, description="Additional metadata information.")
-
-class Paper(BaseModel):
-    """
-    Represents a structured academic paper with metadata and chunked content.
-    """
-    source: str = Field(..., description="Path or URI to the original document (e.g., PDF file).")
-    title: str = Field(default="", description="Title of the paper.")
-    author: str = Field(default="", description="List of author names.")
-    abstract: str = Field(default="", description="Abstract text of the paper.")
-    chunks: List[Chunk] = Field(default_factory=list, description="List of textual chunks representing the body of the paper.")
-
-    def add_chunk(self, chunk: Chunk):
-        """Add a new chunk to the paper's content."""
-        self.chunks.append(chunk)
-
-    def get_chunks_by_section(self, section: str) -> List[Chunk]:
-        """
-        Retrieve all chunks belonging to a specific section.
-
-        Args:
-            section: The section name to filter by.
-
-        Returns:
-            A list of Chunk objects matching the given section.
-        """
-        return [c for c in self.chunks if c.section == section]
-    
-    @property
-    def sections(self) -> List[str]:
-        """
-        Return a sorted list of unique section names present in the paper.
-        """
-        unique_sections: Set[str] = set()
-        for chunk in self.chunks:
-            unique_sections.add(chunk.section)
-        return sorted(unique_sections)
-
-    @property
-    def total_chars(self) -> int:
-        """Return the total number of characters across all chunks."""
-        return sum(len(chunk.content) for chunk in self.chunks)
-
-
-def load_arxiv_html_page(url: str) -> Paper:
-    """
-    Parse the HTML page of an arXiv paper into a structured Paper object.
+    Recursively parse a LaTeX paragraph tag and convert its contents to plain text or Markdown.
 
     Args:
-        url (str): URL of the arXiv HTML page.
+        tag: The BeautifulSoup Tag to parse
 
     Returns:
-        Paper: A structured representation of the parsed paper.
+        Normalized string representation of the paragraph content
     """
-    paper = Paper(source=url)
+    parts: List[str] = []
 
-    response = url_requests_safely(url)
+    for child in tag.children:
+        if isinstance(child, NavigableString):
+            # Handle plain text nodes
+            parts.append(str(child))
+        elif isinstance(child, Tag):
+            if child.name == "math":
+                # Extract math formula from alttext attribute
+                formula = child.get("alttext", "")
+                display = child.get("display", "inline")
+                if display == "block":
+                    parts.append(f"\n$$\n{formula}\n$$\n")
+                else:
+                    parts.append(f"${formula}$")
+            elif child.name == "cite":
+                # Extract citation text without tags
+                cite_text = child.get_text()
+                parts.append(cite_text)
+            elif child.name == "span":
+                classes = child.get("class", [])
+                if set(classes) & LTX_TAG_SKIP_CLASSES:
+                    continue
+                else:
+                    # Process other spans recursively (e.g., equation numbers, emphasis, etc.)
+                    parts.append(parse_ltx_para(child))
+            else:
+                # Recursively process other nested tags
+                parts.append(parse_ltx_para(child))
+        else:
+            # Log unexpected node types for debugging
+            logger.debug(f"Unexpected node type in paragraph: {type(child)}")
 
-    # Parse HTML content
-    assert response is not None  # for type checker
-    bsObj = BeautifulSoup(response.text, "html.parser")
+    # Normalize whitespace for prose; math formulas from alttext are assumed clean
+    text = "".join(parts)
+    return re.sub(r'\s+', ' ', text).strip()
 
-    # title parsing
-    title_tags = bsObj.find("h1", class_="ltx_title")
-    if title_tags:
-        paper.title = title_tags.get_text(separator=' ', strip=True)
-    else:
-        logger.warning(f"Title parsing failed.")
 
-    # abstract parsing
-    abstract_tags = bsObj.find("div", class_="ltx_abstract")
-    if abstract_tags:
-        paper.abstract = abstract_tags.get_text(separator=' ', strip=True)
-    else:
-        logger.warning(f"Abstract parsing failed.")
+def html_to_markdown(html: str) -> str:
+    """
+    Convert LaTeX-generated HTML to Markdown format.
 
-    # section parsing
-    section_tags = bsObj.find_all("section", class_="ltx_section")
-    if section_tags:
-        for section in section_tags:
-            section_id = section.get("id", default="")
-            paragraphs = section.find_all("p", class_="ltx_p")
-            for p in paragraphs:
-                paragraph_id = p.get("id", default="")
-                content = p.get_text(separator=' ', strip=True)
-                chunk = Chunk(section=section_id, paragraph=paragraph_id, content=content)
-                paper.add_chunk(chunk)
-    else:
-        logging.warning(f"Section parsing failed.")
+    Args:
+        html: Input HTML string generated from LaTeX
 
-    return paper
+    Returns:
+        Converted Markdown string with proper heading levels and content
+    """
+    md_lines: List[str] = []
+    soup = BeautifulSoup(html, "html.parser")
+
+    # ====== 1. Document Title ======
+    title_tag = soup.find('title')
+    if title_tag:
+        title_text = title_tag.get_text(strip=True)
+        md_lines.append(f"# {title_text}\n")
+
+    # ====== 2. Abstract Section ======
+    abstract_div = soup.find("div", class_="ltx_abstract")
+    if abstract_div:
+        for p in abstract_div.find_all("p", class_="ltx_p"):
+            md_text = parse_ltx_para(p)
+            md_lines.append(md_text)
+
+    # ====== 3. Main Content Sections ======
+    sections = soup.select("section.ltx_section, section.ltx_subsection, section.ltx_subsubsection")
+    logger.debug(f"Found {len(sections)} content sections to process")
+
+    for section in sections:
+        selector = "h2.ltx_title, h3.ltx_title, h4.ltx_title, h5.ltx_title, h6.ltx_title"
+        heading_tag = section.select_one(selector)
+
+        if heading_tag:
+            heading_text = parse_ltx_para(heading_tag)
+            level = {'h2': 2, 'h3': 3, 'h4': 4, 'h5': 5, 'h6': 6}.get(heading_tag.name, 2)
+            md_lines.append(f"{"#" * level} {heading_text}\n")
+            logger.debug(f"Processed heading (level {level}): {heading_text}")
+
+        # Process paragraphs directly under this section
+        # for para_div in section.find_all("div", class_="ltx_para"):
+        for para_div in section.select(":scope > div.ltx_para"):
+            # Ensure we're only processing paragraphs directly in this section
+            para_md = parse_ltx_para(para_div)
+            if para_md:
+                md_lines.append(para_md + "\n")
+
+    return "\n".join(md_lines).strip()
