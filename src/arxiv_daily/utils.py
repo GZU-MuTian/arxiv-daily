@@ -1,11 +1,14 @@
 """
 Module to fetch and parse daily arXiv updates for a specified channel.
 """
+from langchain_core.documents import Document
+from langchain_text_splitters import MarkdownHeaderTextSplitter
 
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, TypedDict
 from bs4 import BeautifulSoup, NavigableString, Tag
 from datetime import datetime
+from uuid import uuid4
 import requests
 import logging
 import time
@@ -304,3 +307,88 @@ def html_to_markdown(html: str) -> str:
                 md_lines.append(para_md + "\n")
 
     return "\n".join(md_lines).strip()
+
+
+class ParagraphMetadata(TypedDict):
+    """
+    Metadata for a paragraph chunk.
+    """
+    paragraph_id: str
+    header: Dict[str, str]
+    prev_paragraph_id: str
+    next_paragraph_id: str
+    create_at: str
+    create_by: str
+    word_count: int
+
+def parse_markdown(
+    markdown_text: str,
+    headers_to_split_on: Optional[List[tuple]] = None,
+    return_each_line: bool = True,
+    create_at: Optional[str] = None,
+    create_by: str = "AI4Research"
+) -> List[Document]:
+    """
+    Parse a Markdown file into a list of LangChain Document objects with enriched metadata.
+
+    Args:
+        markdown_text (str): markdown text.
+        headers_to_split_on (Optional[List[Tuple[str, str]]]): List of (header_prefix, header_name) tuples. Defaults to H1–H4.
+        return_each_line (bool): Whether to split each line as a separate document. Default: True.
+        create_at (Optional[str]): Creation date in 'YYYY-MM-DD'. Defaults to today.
+        create_by: Creator identifier.
+
+    Returns:
+        List[Document]: List of documents with custom metadata from ParagraphMetadata.
+    """
+    documents: List[Document] = []
+
+    if create_at is None:
+        create_at = datetime.now().strftime("%Y-%m-%d")
+
+    # Define header patterns for MarkdownHeaderTextSplitter
+    _DEFAULT_HEADERS_TO_SPLIT_ON = [
+        ("#", "Header 1"),
+        ("##", "Header 2"),
+        ("###", "Header 3"),
+        ("####", "Header 4")
+    ]
+    splitter = MarkdownHeaderTextSplitter(
+        headers_to_split_on=headers_to_split_on or _DEFAULT_HEADERS_TO_SPLIT_ON,
+        return_each_line=return_each_line
+    )
+    try:
+        raw_docs = splitter.split_text(markdown_text)
+    except Exception as e:
+        logger.error(f"Failed to split markdown: {e}")
+        return documents
+
+    for doc in raw_docs:
+        paragraph = doc.page_content
+
+        # Estimate word count
+        word_count = len(paragraph.split())
+
+        para_id = str(uuid4())
+
+        meta = ParagraphMetadata(
+            paragraph_id=para_id,
+            header=doc.metadata,
+            create_at=create_at,
+            create_by=create_by,
+            word_count=word_count,
+            prev_paragraph_id="",
+            next_paragraph_id=""
+        )
+
+        documents.append(Document(page_content=doc.page_content, metadata=meta))
+
+    # Second pass: link prev/next paragraph IDs
+    for idx, doc in enumerate(documents):
+        if idx > 0:
+            doc.metadata["prev_paragraph_id"] = documents[idx - 1].metadata["paragraph_id"]
+        if idx < len(documents) - 1:
+            doc.metadata["next_paragraph_id"] = documents[idx + 1].metadata["paragraph_id"]
+
+    logger.info(f"Parsed {len(documents)} chunks'")
+    return documents
