@@ -2,7 +2,7 @@
 PDF Summarization Agent.
 """
 from .chains import PaperCompressionChain, OrganizedSummaryChain, OrganizedSummary
-from .utils import load_arxiv_html_page, Paper
+from .utils import url_requests_safely, html_to_markdown, parse_markdown
 
 from langgraph.graph import StateGraph, START, END
 
@@ -23,7 +23,7 @@ class PaperState(BaseModel):
     Represents the state of the summarization workflow.
     """
     source: str = Field(..., description="Path to the input PDF file.")
-    paper: Optional[Paper] = Field(default=None, description="Parsed structured representation of the academic paper.")
+    md_text: str = Field(default="", description="Raw markdown text extracted from HTML.")
     summary: str = Field(default="", description="Generated summary of the paper.")
     organized_summary: Optional[OrganizedSummary] = Field(default=None, description="Organized Summary")
 
@@ -31,13 +31,13 @@ class PaperState(BaseModel):
 
 def resolve_source(state: PaperState) -> Dict[str, Any]:
     """
-    Node to resolve ambiguous source into a concrete URL.
+    Resolve ambiguous source string into a concrete arXiv HTML URL.
 
     Args:
         state (PaperState): Current state containing the source string.
 
     Returns:
-        Dict[str, Any]: A dictionary with updated 'source' key if resolution occurred; otherwise, an empty dict.
+        Dict[str, Any]: Dict[str, Any]: Updated state with 'source' set to the valid HTML URL.
     """
     src = state.source.strip()
 
@@ -45,24 +45,20 @@ def resolve_source(state: PaperState) -> Dict[str, Any]:
     arxiv_match = re.fullmatch(r'(?:arxiv:)?(\d{4}\.\d{4,5}(?:v\d+)?)', src, re.IGNORECASE)
 
     if not arxiv_match:
-        logger.debug("Source does not match arXiv ID pattern.")
-        return {}  # no change
+        raise ValueError(f"Source does not match arXiv ID pattern: {src}")
 
     arxiv_id = arxiv_match.group(1)
     logger.info(f"Detected arXiv ID: {arxiv_id}.")
-    html_url = f"https://arxiv.org/html/{arxiv_id}"
 
-    logger.debug(f"Checking HTML accessibility at: {html_url}")
+    html_url = f"https://arxiv.org/html/{arxiv_id}"
     try:
         response = requests.head(html_url, timeout=10)  # Use HEAD request to check existence without downloading content
         if response.status_code == 200:
             return {"source": html_url}
         else:
-            logger.warning(f"HTML page unavailable (status {response.status_code}).")
-    except requests.RequestException as e:
-        logger.error(f"Error checking HTML URL: {e}.")
-
-    return {}  # no change
+            raise RuntimeError(f"arXiv HTML page not available for {src}")
+    except Exception as e:
+        raise RuntimeError(f"Failed to access arXiv HTML URL {html_url}: {e}") from e
 
 
 def parse_html_page(state: PaperState) -> Dict[str, Any]:
@@ -78,9 +74,13 @@ def parse_html_page(state: PaperState) -> Dict[str, Any]:
     source = state.source
     logger.debug(f"Parsing HTML page: {source}")
 
-    paper = load_arxiv_html_page(source)
+    response = url_requests_safely("https://arxiv.org/html/2512.23758v1")
+    try:
+        md_text = html_to_markdown(response.text)
+    except Exception as e:
+        raise RuntimeError(f"Failed to convert HTML to Markdown: {e}") from e
 
-    return {"paper": paper}
+    return {"md_text": md_text}
 
 
 def summarize_paper(state: PaperState) -> Dict[str, Any]:
@@ -90,15 +90,19 @@ def summarize_paper(state: PaperState) -> Dict[str, Any]:
     The function first compresses the abstract, then iteratively compresses each section while maintaining cumulative context to avoid redundancy and ensure coherence. Character allocation per section is proportional to its length.
 
     Args:
-        state (PaperState): Current state containing raw_text.
+        state (PaperState): Current state containing md_text.
 
     Returns:
         Dict[str, Any]: Updated state with 'summary' field populated.
     """
-    paper = state.paper
-    if paper is None:
-        raise ValueError("Paper must be parsed before summarization.")
-    
+    md_text = state.md_text
+
+    try:
+        docs = parse_markdown(md_text)
+
+
+        
+
     chain = PaperCompressionChain()
     context = ""
     # Compress section
