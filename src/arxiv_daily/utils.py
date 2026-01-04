@@ -6,7 +6,8 @@ from langchain_text_splitters import MarkdownHeaderTextSplitter
 
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, TypedDict, NamedTuple
-from bs4 import BeautifulSoup, NavigableString, Tag
+from bs4 import BeautifulSoup, Tag
+from bs4.element import NavigableString
 from datetime import datetime
 from uuid import uuid4
 import requests
@@ -322,7 +323,7 @@ class ParagraphMetadata(TypedDict):
     create_by: str
     word_count: int
 
-def parse_markdown(
+def markdown_splitter(
     markdown_text: str,
     headers_to_split_on: Optional[List[tuple]] = None,
     return_each_line: bool = True,
