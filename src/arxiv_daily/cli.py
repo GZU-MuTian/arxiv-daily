@@ -145,10 +145,6 @@ def summarize(
     )
 
     # Output results
-    console.print(Panel(
-        results["paper"].abstract,
-        title="Abstract", 
-    ))
     console.print(Rule("Organized Summary", style="dim"))
     summary: OrganizedSummary = results.get("organized_summary", "") 
     for k, v in summary.model_dump().items():
