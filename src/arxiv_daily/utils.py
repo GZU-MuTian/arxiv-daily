@@ -22,7 +22,7 @@ def url_requests_safely(
     max_retries: int = 3,
     timeout: float = 30.0,
     retry_delay: float = 1.0
-) -> Optional[requests.Response]:
+) -> requests.Response:
     """
     Safely fetch a URL with retry logic.
 
@@ -31,10 +31,12 @@ def url_requests_safely(
         max_retries (int): Maximum number of retry attempts (default: 3).
         timeout (float): Request timeout in seconds (default: 30.0).
         retry_delay (float): Delay between retries in seconds (default: 1.0).
-        logger (Optional[logging.Logger]): Logger instance for recording events.
 
     Returns:
-        Optional[requests.Response]: The response object if successful; None otherwise.
+        requests.Response: The successful response (status code 200).
+
+    Raises:
+        RuntimeError: If all retry attempts fail.
     """
     for attempt in range(max_retries):
         try:
@@ -50,8 +52,7 @@ def url_requests_safely(
         if attempt < max_retries - 1:
             time.sleep(retry_delay)
 
-    logger.error("All %d attempts failed for URL: %s", max_retries, url)
-    return None
+    raise RuntimeError("All %d attempts failed for URL: %s", max_retries, url)
 
 
 class arXivItem(BaseModel):
@@ -393,6 +394,7 @@ def parse_markdown(
     logger.info(f"Parsed {len(documents)} chunks'")
     return documents
 
+
 class TocEntry(NamedTuple):
     num: str
     title: str
@@ -443,3 +445,38 @@ def generate_toc(docs: List[Document]) -> List[TocEntry]:
             toc.append(entry)
     return toc
 
+
+
+# def get_section_chunks(
+#     docs: List[Document],
+#     toc: List[TocEntry],
+#     title: str,
+#     merge: bool = True,
+#     max_chars: Optional[int] = None,
+#     split_by_subheaders: bool = False,
+# ) -> List[Document]:
+#     """
+#     Retrieve all document chunks belonging to a specific section (by title), optionally merge them, and re-split if needed.
+
+#     Args:
+#         docs: Original documents.
+#         header: 
+#         merge: If True, combine all matching chunks into one text before re-splitting.
+#         max_chars: If set and merge=True, re-split merged content if longer than this.
+#         split_by_subheaders: If True and re-splitting.
+
+#     Returns:
+#         List of Document objects representing the section content.
+#     """
+
+    # def get_chunks_by_section(self, section: str) -> List[Document]:
+    #     """
+    #     Retrieve all chunks belonging to a specific section.
+
+    #     Args:
+    #         section: The section name to filter by.
+
+    #     Returns:
+    #         A list of Chunk objects matching the given section.
+    #     """
+    #     return [c for c in self.docs if section in c.metadata.get("header", {}).values()]
