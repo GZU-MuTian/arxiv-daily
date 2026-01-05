@@ -51,15 +51,16 @@ def resolve_source(state: PaperState) -> Dict[str, Any]:
     logger.info(f"Detected arXiv ID: {arxiv_id}.")
 
     html_url = f"https://arxiv.org/html/{arxiv_id}"
-    try:
-        response = requests.head(html_url, timeout=10)  # Use HEAD request to check existence without downloading content
-        if response.status_code == 200:
-            return {"source": html_url}
-        else:
-            raise RuntimeError(f"arXiv HTML page not available for {src}")
-    except Exception as e:
-        raise RuntimeError(f"Failed to access arXiv HTML URL {html_url}: {e}") from e
 
+    # Use HEAD request to check existence
+    response = requests.head(html_url, timeout=10)  
+    if response.status_code == 200:
+        return {"source": html_url}
+    else:
+        raise requests.HTTPError(
+            f"URL request failed for {html_url}: "
+            f"HTTP {response.status_code} {response.reason}"
+        )
 
 def parse_html_page(state: PaperState) -> Dict[str, Any]:
     """
