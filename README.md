@@ -1,5 +1,6 @@
 # arxiv-daily
 
+[![PyPI version](https://badge.fury.io/py/arxiv-daily.svg)](https://pypi.org/project/arxiv-daily/)
 [![Python Version](https://img.shields.io/badge/python-3.13%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
