@@ -449,38 +449,3 @@ def generate_toc(docs: List[Document]) -> List[TocEntry]:
             toc.append(entry)
     return toc
 
-
-
-# def get_section_chunks(
-#     docs: List[Document],
-#     toc: List[TocEntry],
-#     title: str,
-#     merge: bool = True,
-#     max_chars: Optional[int] = None,
-#     split_by_subheaders: bool = False,
-# ) -> List[Document]:
-#     """
-#     Retrieve all document chunks belonging to a specific section (by title), optionally merge them, and re-split if needed.
-
-#     Args:
-#         docs: Original documents.
-#         header: 
-#         merge: If True, combine all matching chunks into one text before re-splitting.
-#         max_chars: If set and merge=True, re-split merged content if longer than this.
-#         split_by_subheaders: If True and re-splitting.
-
-#     Returns:
-#         List of Document objects representing the section content.
-#     """
-
-    # def get_chunks_by_section(self, section: str) -> List[Document]:
-    #     """
-    #     Retrieve all chunks belonging to a specific section.
-
-    #     Args:
-    #         section: The section name to filter by.
-
-    #     Returns:
-    #         A list of Chunk objects matching the given section.
-    #     """
-    #     return [c for c in self.docs if section in c.metadata.get("header", {}).values()]
