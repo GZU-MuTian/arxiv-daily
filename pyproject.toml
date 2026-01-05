@@ -1,7 +1,7 @@
 [project]
 name = "arxiv-daily"
 version = "0.1.0"
-description = "Add your description here"
+description = "Tracking daily arXiv updates and generating intelligent summaries with LLMs."
 readme = "README.md"
 authors = [
     { name = "yuliu", email = "yuliu@gzu.edu.cn" }
@@ -19,9 +19,12 @@ dependencies = [
     "typer>=0.21.0",
 ]
 
+[project.urls]
+Repository = "https://github.com/GZU-MuTian/arxiv-daily"
+
 [project.scripts]
 arXiv = "arxiv_daily.cli:app"
 
 [build-system]
-requires = ["uv_build>=0.9.11,<0.10.0"]
-build-backend = "uv_build"
+requires = ["hatchling"]
+build-backend = "hatchling.build"

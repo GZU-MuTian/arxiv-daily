@@ -39,17 +39,11 @@ DEEPSEEK_API_KEY="your-deepseek-api-key-here"
 export ARXIV_CATEGORY="cs.AI,astro-ph.HE,hep-ph"
 ```
 
-https://arxiv.org/category_taxonomy
-
 ## Usage Guide
-
-### Core Functions
-
 
 ### Command-Line Interface
 
-For rapid prototyping or batch workflows, `arxiv-daily` includes a CLI named `arXiv`. It uses the same core functions as the Python API—ensuring consistent behavior across interfaces.
-
+`arxiv-daily` includes a CLI named `arXiv`.
 > 🔧 Tip: Run `arXiv --help` for an overview, or `arXiv <command> --help` for command-specific options.
 
 Fetch the latest preprints from any arXiv channel with beautiful terminal formatting:
@@ -60,7 +54,7 @@ arXiv new
 # Specific channel (e.g., Computer Science - AI)
 arXiv new --channel cs.AI
 
-# Filter by categories within Astrophysics
+# Filter by multiple categories
 arXiv new --channel astro-ph --category astro-ph.HE,astro-ph.IM
 
 ```
@@ -68,21 +62,13 @@ arXiv new --channel astro-ph --category astro-ph.HE,astro-ph.IM
 Generate AI Summaries:
 ```bash
 # Basic summary with default model (DeepSeek)
-arXiv summarize 2401.12345
+arXiv summarize <arxiv_id>
 
 # Specify model and provider
-arXiv summarize 2401.12345 --model gpt-4o --provider openai
-
-# Advanced generation parameters
-arXiv summarize 2401.12345 \
-  --model deepseek-reasoner \
-  --provider deepseek \
-  --temperature 0.7 \
-  --max-tokens 2000 \
-  --reasoning
+arXiv summarize <arxiv_id> --model deepseek-chat --provider deepseek
 
 # Short form
-arXiv summarize 2401.12345 -m gpt-4 -p openai -t 0.5
+arXiv summarize <arxiv_id> -m deepseek-chat -p deepseek -t 0.5
 ```
 
 Adjust verbosity for debugging or quiet runs:
@@ -91,12 +77,12 @@ Adjust verbosity for debugging or quiet runs:
 arXiv --log-level ERROR new
 
 # Short form for detailed debugging
-arXiv -v DEBUG summarize 2401.12345
+arXiv -v DEBUG new
 ```
 
 ## Project Structure
 
-```
+```text
 arxiv_daily/
 ├── agents.py        # LangGraph agents for complex summarization workflows
 ├── chains.py        # LangChain chains for LLM interactions
@@ -104,14 +90,14 @@ arxiv_daily/
 ├── core.py          # Core functions (_run_new, _run_summarize)
 ├── llm_client.py    # Unified LLM provider interface
 ├── utils.py         # Utility functions
-└── README.md        # This file
+└── __init__.py
 ```
 
 ## Related Resources
 
-- arXiv.org - Scientific preprint repository
-- arXiv Category Taxonomy - Complete category list
-- LangGraph Guide: https://docs.langchain.com/
+- [arXiv.org](https://arxiv.org/list/astro-ph/new)
+- [arXiv Category Taxonomy](https://arxiv.org/category_taxonomy)
+- [LangGraph Guide](https://docs.langchain.com/)
 
 ## Contact
 
