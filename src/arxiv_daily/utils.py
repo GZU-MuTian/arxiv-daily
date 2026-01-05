@@ -327,6 +327,7 @@ def markdown_splitter(
     markdown_text: str,
     headers_to_split_on: Optional[List[tuple]] = None,
     return_each_line: bool = True,
+    strip_headers: bool = True,
     create_at: Optional[str] = None,
     create_by: str = "arxiv-daily"
 ) -> List[Document]:
@@ -337,6 +338,7 @@ def markdown_splitter(
         markdown_text (str): markdown text.
         headers_to_split_on (Optional[List[Tuple[str, str]]]): List of (header_prefix, header_name) tuples. Defaults to H1–H4.
         return_each_line (bool): Whether to split each line as a separate document. Default: True.
+        strip_headers (bool: Strip split headers from the content of the chunk
         create_at (Optional[str]): Creation date in 'YYYY-MM-DD'. Defaults to today.
         create_by: Creator identifier.
 
@@ -357,7 +359,8 @@ def markdown_splitter(
     ]
     splitter = MarkdownHeaderTextSplitter(
         headers_to_split_on=headers_to_split_on or _DEFAULT_HEADERS_TO_SPLIT_ON,
-        return_each_line=return_each_line
+        return_each_line=return_each_line,
+        strip_headers=strip_headers
     )
     try:
         raw_docs = splitter.split_text(markdown_text)

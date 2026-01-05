@@ -27,7 +27,7 @@ Consider context from previous parts when summarizing individual sections. Exclu
 """
 
 _HUMAN_COMPRESS_PROMPT = """
-Condense the following text into a maximum of {num_chunk_char_limit} characters, avoiding repetition of the provided context. Exclude references at the end. Paragraphs:\n\n{chunk}
+Condense the following text into a maximum of {num_word_limit} words, avoiding repetition of the provided context. Exclude references at the end. Paragraphs:\n\n{chunk}
 """
 
 COMPRESS_PROMPT = ChatPromptTemplate.from_messages([

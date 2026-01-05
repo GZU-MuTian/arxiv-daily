@@ -2,12 +2,12 @@
 PDF Summarization Agent.
 """
 from .chains import PaperCompressionChain, OrganizedSummaryChain, OrganizedSummary
-from .utils import url_requests_safely, html_to_markdown, parse_markdown
+from .utils import url_requests_safely, html_to_markdown, markdown_splitter
 
 from langgraph.graph import StateGraph, START, END
 
 import requests
-from typing import List, Dict, Any, Literal, Optional
+from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 import logging
 import re
@@ -72,22 +72,23 @@ def parse_html_page(state: PaperState) -> Dict[str, Any]:
         Dict[str, Any]: Updated state with 'paper' field populated.
     """
     source = state.source
-    logger.debug(f"Parsing HTML page: {source}")
 
-    response = url_requests_safely("https://arxiv.org/html/2512.23758v1")
+    response = url_requests_safely(source)
     try:
         md_text = html_to_markdown(response.text)
     except Exception as e:
         raise RuntimeError(f"Failed to convert HTML to Markdown: {e}") from e
 
-    return {"md_text": md_text}
+    return {"md_text": md_text.strip()}
 
 
 def summarize_paper(state: PaperState) -> Dict[str, Any]:
     """
     Generate a concise, structured summary of an astrophysics paper using an LLM.
 
-    The function first compresses the abstract, then iteratively compresses each section while maintaining cumulative context to avoid redundancy and ensure coherence. Character allocation per section is proportional to its length.
+    Strategy:
+    - Split by # and ## headers to preserve section semantics.
+    - Compress each section with limited context to balance coherence and redundancy.
 
     Args:
         state (PaperState): Current state containing md_text.
@@ -97,36 +98,52 @@ def summarize_paper(state: PaperState) -> Dict[str, Any]:
     """
     md_text = state.md_text
 
+    # === Step 1: Split by headers ===
+    headers = [
+        ("#", "Header 1"),
+        ("##", "Header 2")
+    ]
     try:
-        docs = parse_markdown(md_text)
+        docs = markdown_splitter(
+            md_text, 
+            headers_to_split_on=headers, 
+            return_each_line=False, 
+            strip_headers=False
+        )
+    except Exception as e:
+        raise RuntimeError(f"Failed to parse markdown: {e}") from e
 
-
-        
+    # Estimate word count
+    total_word = sum(doc.metadata["word_count"] for doc in docs)
+    TARGET_TOTAL_WORDS = 1500
 
     chain = PaperCompressionChain()
     context = ""
-    # Compress section
-    total_char_limit = 10000
-    total_chars = paper.total_chars
-    for sec in track(paper.sections, description="Summarizing sections..."):
-        section_chunks = paper.get_chunks_by_section(sec)
 
-        # Skip empty sections
-        if not section_chunks:
+    for sec in track(docs, description="Summarizing sections..."):
+        section_text = sec.page_content.strip()
+        if not section_text:
             continue
 
-        section_text = '\n\n'.join(chunk.content.strip() for chunk in section_chunks)
+        # Compute word budget for this section
+        section_words = sec.metadata["word_count"]
+        num_word_limit = int(section_words * TARGET_TOTAL_WORDS / total_word)
+        header_title = (
+            sec.metadata["header"].get("Header 2") or 
+            sec.metadata["header"].get("Header 1") or 
+            "Unnamed Section"
+        )
+        logger.debug(f"Section '{header_title}': {section_words} words → allocated {num_word_limit} words")
 
-        num_chunk_char_limit = len(section_text) * total_char_limit / total_chars
         try:
-            response = chain.invoke({"chunk": section_text, "num_chunk_char_limit": num_chunk_char_limit, "context": context})
-            context += response + "\n\n"
+            sec_summary = chain.invoke({"chunk": section_text, "num_word_limit": num_word_limit, "context": context})
+            context += sec_summary + "\n\n"
         except Exception as e:
             logger.error(f"Error processing '{sec}': {e}")
             continue
 
     logger.info("Summarization completed!")
-    return {"summary": context.strip()}
+    return {"summary": context}
 
 def organize_summarization(state: PaperState) -> Dict[str, Any]:
     """
