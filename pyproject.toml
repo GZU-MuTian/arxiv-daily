@@ -1,12 +1,12 @@
 [project]
 name = "arxiv-daily"
-version = "0.1.1"
+version = "0.1.2"
 description = "Tracking daily arXiv updates and generating intelligent summaries with LLMs."
 readme = "README.md"
 authors = [
     { name = "yuliu", email = "yuliu@gzu.edu.cn" }
 ]
-requires-python = ">=3.13"
+requires-python = ">=3.11"
 dependencies = [
     "beautifulsoup4>=4.14.3",
     "langchain>=1.2.0",
@@ -28,3 +28,20 @@ arXiv = "arxiv_daily.cli:app"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "--color=yes",
+]
