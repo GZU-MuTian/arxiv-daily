@@ -1,7 +1,7 @@
 # arxiv-daily
 
 [![PyPI version](https://badge.fury.io/py/arxiv-daily.svg)](https://pypi.org/project/arxiv-daily/)
-[![Python Version](https://img.shields.io/badge/python-3.13%2B-blue)](https://www.python.org/)
+[![Python Version](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **AI-powered arXiv research assistant** - Beautiful terminal interface for tracking arXiv preprints and generating intelligent summaries with LLMs.
