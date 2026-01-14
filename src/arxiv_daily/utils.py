@@ -297,7 +297,7 @@ def html_to_markdown(html: str) -> str:
         if heading_tag:
             heading_text = parse_ltx_para(heading_tag)
             level = {'h2': 2, 'h3': 3, 'h4': 4, 'h5': 5, 'h6': 6}.get(heading_tag.name, 2)
-            md_lines.append(f"{"#" * level} {heading_text}\n")
+            md_lines.append(f"{'#' * level} {heading_text}\n")
             logger.debug(f"Processed heading (level {level}): {heading_text}")
 
         # Process paragraphs directly under this section
