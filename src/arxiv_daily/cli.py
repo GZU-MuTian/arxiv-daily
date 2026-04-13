@@ -129,8 +129,8 @@ def new(
 @app.command(help="Extract key insights from arXiv paper.")
 def summarize(
     arxivid: str = typer.Argument(..., help="arXiv identifier."),
-    model: str = typer.Option("deepseek-chat", "--model", "-m", help="Model name."),
-    model_provider: str = typer.Option("deepseek", "--provider", "-p", help="Model provider."),
+    model: str = typer.Option("deepseek-chat", "--model", "-m", envvar="ARXIV_SUMMARIZE_MODEL", help="Model name."),
+    model_provider: str = typer.Option("deepseek", "--provider", "-p", envvar="ARXIV_SUMMARIZE_MODEL_PROVIDER", help="Model provider."),
     temperature: Optional[float] = typer.Option(None, "--temp", "-t", help="Sampling temperature."),
     max_tokens: Optional[int] = typer.Option(None, "--max-tokens", help="Maximum number of output tokens."),
     reasoning: Optional[bool] = typer.Option(None, "--reasoning", help="Controls the reasoning/thinking mode for supported models."),
