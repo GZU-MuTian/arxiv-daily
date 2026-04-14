@@ -9,8 +9,10 @@
 **Key capabilities:**
 - **Daily arXiv Updates**: Fetch and filter the latest preprints from any arXiv channel.
 - **AI-Powered Summaries**: Generate structured, organized summaries using LLMs.
+- **Paper Metadata**: Fetch detailed metadata for any arXiv paper.
 - **Beautiful Output**: Colorful terminal output, syntax highlighting, and progress bars using the Rich library.
 - **Smart Filtering**: Filter by arXiv categories and channels for focused research.
+- **Obsidian Integration**: Export summaries as Markdown with frontmatter for knowledge management.
 
 ## Quick Start
 
@@ -38,6 +40,9 @@ DEEPSEEK_API_KEY="your-deepseek-api-key-here"
 
 # Default arXiv categories (comma-separated)
 export ARXIV_CATEGORY="cs.AI,astro-ph.HE,hep-ph"
+
+# Default output directory for summaries (optional)
+export ARXIV_SUMMARIZE_OUTPUT="/path/to/your/obsidian/vault"
 ```
 
 ## Usage Guide
@@ -57,19 +62,34 @@ arXiv new --channel cs.AI
 
 # Filter by multiple categories
 arXiv new --channel astro-ph --category astro-ph.HE,astro-ph.IM
+```
 
+Fetch Paper Metadata:
+```bash
+# Get metadata for a specific paper
+arXiv meta 2401.12345
+
+# Supports various input formats
+arXiv meta arXiv:2401.12345
+arXiv meta arXiv:2401.12345v1
 ```
 
 Generate AI Summaries:
 ```bash
 # Basic summary with default model (DeepSeek)
-arXiv summarize <arxiv_id>
+arXiv summarize 2401.12345
 
 # Specify model and provider
-arXiv summarize <arxiv_id> --model deepseek-chat --provider deepseek
+arXiv summarize 2401.12345 --model deepseek-chat --provider deepseek
 
 # Short form
-arXiv summarize <arxiv_id> -m deepseek-chat -p deepseek -t 0.5
+arXiv summarize 2401.12345 -m deepseek-chat -p deepseek -t 0.5
+
+# Save to file (if ARXIV_SUMMARIZE_OUTPUT is set)
+arXiv summarize 2401.12345
+
+# Save to specific directory
+arXiv summarize 2401.12345 -o /path/to/output
 ```
 
 Adjust verbosity for debugging or quiet runs:
