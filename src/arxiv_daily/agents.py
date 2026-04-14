@@ -2,7 +2,7 @@
 PDF Summarization Agent.
 """
 from .chains import PaperCompressionChain, OrganizedSummaryChain, OrganizedSummary
-from .utils import url_requests_safely, html_to_markdown, markdown_splitter
+from .utils import url_requests_safely, html_to_markdown, markdown_splitter, parse_arxiv_id
 
 from langgraph.graph import StateGraph, START, END
 
@@ -10,7 +10,6 @@ import requests
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 import logging
-import re
 from rich.progress import track
 
 logger = logging.getLogger(__name__)
@@ -41,19 +40,13 @@ def resolve_source(state: PaperState) -> Dict[str, Any]:
     """
     src = state.source.strip()
 
-    # Match arXiv ID (e.g., '2101.12345' or 'arXiv:2101.12345')
-    arxiv_match = re.fullmatch(r'(?:arxiv:)?(\d{4}\.\d{4,5}(?:v\d+)?)', src, re.IGNORECASE)
-
-    if not arxiv_match:
-        raise ValueError(f"Source does not match arXiv ID pattern: {src}")
-
-    arxiv_id = arxiv_match.group(1)
+    arxiv_id = parse_arxiv_id(src)
     logger.info(f"Detected arXiv ID: {arxiv_id}.")
 
     html_url = f"https://arxiv.org/html/{arxiv_id}"
 
     # Use HEAD request to check existence
-    response = requests.head(html_url, timeout=10)  
+    response = requests.head(html_url, timeout=10)
     if response.status_code == 200:
         return {"source": html_url}
     else:
@@ -179,7 +172,7 @@ def arXivSummarizationAgent():
     """
     logger.debug("Creating LangGraph workflow for paper summarization.")
 
-    # Initialize the state graph 
+    # Initialize the state graph
     workflow = StateGraph(PaperState)
 
     # Add nodes
