@@ -6,6 +6,8 @@
 
 **AI-powered arXiv research assistant** - Beautiful terminal interface for tracking arXiv preprints and generating intelligent summaries with LLMs.
 
+Build your own personal **RAG (Retrieval-Augmented Generation) knowledge base** - track daily papers, generate structured summaries with rich metadata, and export them to Markdown for seamless integration with vector databases, semantic search engines, and note-taking workflows like Obsidian.
+
 **Key capabilities:**
 - **Daily arXiv Updates**: Fetch and filter the latest preprints from any arXiv channel.
 - **AI-Powered Summaries**: Generate structured, organized summaries using LLMs.
