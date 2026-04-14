@@ -5,7 +5,7 @@ from langchain_core.documents import Document
 from langchain_text_splitters import MarkdownHeaderTextSplitter
 
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional, TypedDict, NamedTuple
+from typing import List, Dict, Optional, TypedDict, NamedTuple, Any
 from bs4 import BeautifulSoup, Tag
 from bs4.element import NavigableString
 from datetime import datetime
@@ -16,6 +16,98 @@ import time
 import re
 
 logger = logging.getLogger(__name__)
+
+
+def parse_arxiv_id(source: str) -> str:
+    """
+    Parse an arXiv ID from a source string.
+
+    Accepts formats like '2101.12345', 'arXiv:2101.12345', or 'arXiv:2101.12345v1'.
+
+    Args:
+        source: Raw source string potentially containing an arXiv ID.
+
+    Returns:
+        The extracted arXiv ID (e.g., '2101.12345').
+
+    Raises:
+        ValueError: If no valid arXiv ID pattern is found.
+    """
+    src = source.strip()
+    arxiv_match = re.fullmatch(r'(?:arxiv:)?(\d{4}\.\d{4,5}(?:v\d+)?)', src, re.IGNORECASE)
+    if not arxiv_match:
+        raise ValueError(f"Source does not match arXiv ID pattern: {source}")
+    return arxiv_match.group(1)
+
+
+def build_markdown_content(
+    arxiv_id: str,
+    paper_meta: dict,
+    summary: Any,
+) -> str:
+    """
+    Build Markdown content for an arXiv paper summary.
+
+    Args:
+        arxiv_id: The arXiv identifier.
+        paper_meta: Dictionary containing paper metadata (title, authors, subjects, comments, date).
+        summary: OrganizedSummary object with the paper summary sections.
+
+    Returns:
+        Formatted Markdown content string.
+    """
+    title = paper_meta.get("title", "")
+    authors = paper_meta.get("authors", [])
+    abstract = paper_meta.get("abstract", "")
+    subjects = paper_meta.get("subjects", [])
+    comments = paper_meta.get("comments", "")
+    pub_date = paper_meta.get("date", "")
+
+    # Build tags
+    tags = ["arxiv", "ai-summary"]
+    # Add subjects as tags for classification — extract abbreviations
+    if subjects:
+        for s in subjects:
+            # Extract abbreviation inside parenthesis, e.g. "astro-ph.IM" from "Instrumentation and Methods for Astrophysics (astro-ph.IM)"
+            match = re.search(r'\(([^)]+)\)', s)
+            if match:
+                abbr = match.group(1)
+                # Remove characters not allowed in Obsidian tags (dots)
+                tag = abbr.replace(".", "_")
+                tags.append(tag)
+
+    # Format authors
+    authors_str = ", ".join(authors[:3]) + (", et al." if len(authors) > 3 else "")
+
+    # Build frontmatter and title
+    subjects_str = ", ".join(subjects) if subjects else ""
+    md_content = f"""---
+title: "{title}"
+arxivId: "{arxiv_id}"
+authors: "{authors_str}"
+date: {pub_date.replace('/', '-') if pub_date else ''}
+tags:
+{chr(10).join(f'  - {t}' for t in tags)}
+comments: "{comments}"
+subjects: "{subjects_str}"
+abstract: "{abstract}"
+---
+# AI Summary
+"""
+
+    # Summary sections
+    if hasattr(summary, "model_dump"):
+        summary_dict = summary.model_dump()
+    elif isinstance(summary, dict):
+        summary_dict = summary
+    else:
+        summary_dict = {}
+
+    for k, v in summary_dict.items():
+        name = k.replace("_", " ").title()
+        md_content += f"## {name}\n{v}\n"
+
+    return md_content
 
 
 def url_requests_safely(
@@ -54,6 +146,63 @@ def url_requests_safely(
             time.sleep(retry_delay)
 
     raise RuntimeError("All %d attempts failed for URL: %s", max_retries, url)
+
+
+def get_arxiv_metadata(arxivid: str) -> Optional[Dict[str, Any]]:
+    """
+    Fetch paper metadata from arXiv abstract page.
+
+    Args:
+        arxivid: arXiv identifier
+
+    Returns:
+        Dict with title, authors, subjects, abstract, comments, date; None if failed.
+    """
+    url = f"https://arxiv.org/abs/{arxivid}"
+    try:
+        response = url_requests_safely(url, max_retries=2)
+        bsObj = BeautifulSoup(response.text, "html.parser")
+
+        # Title - use meta tag for stability
+        title_meta = bsObj.find("meta", attrs={"name": "citation_title"})
+        title = title_meta.get("content", "").strip() if title_meta else ""
+
+        # Authors - use meta tags for stability
+        author_metas = bsObj.find_all("meta", attrs={"name": "citation_author"})
+        authors = [a.get("content", "").strip() for a in author_metas if a.get("content")]
+
+        # Abstract - use meta tag for stability
+        abstract_meta = bsObj.find("meta", attrs={"name": "citation_abstract"})
+        abstract = abstract_meta.get("content", "").strip() if abstract_meta else ""
+
+        # Date - use meta tag
+        date_meta = bsObj.find("meta", attrs={"name": "citation_date"})
+        date_str = date_meta.get("content", "") if date_meta else ""
+
+        # Comments - match both "tablecell comments" and "tablecell comments mathjax"
+        comments_td = bsObj.find("td", class_=lambda c: c and "tablecell" in c and "comments" in c)
+        comments = ""
+        if comments_td:
+            comments = comments_td.get_text().strip()
+
+        # Subjects
+        subjects_td = bsObj.find("td", class_="tablecell subjects")
+        subjects = []
+        if subjects_td:
+            subjects_text = subjects_td.get_text()
+            subjects = [s.strip() for s in subjects_text.split(";") if s.strip()]
+
+        return {
+            "title": title,
+            "authors": authors,
+            "abstract": abstract,
+            "comments": comments,
+            "subjects": subjects,
+            "date": date_str,
+        }
+    except Exception as e:
+        logger.warning(f"Failed to fetch metadata for {arxivid}: {e}")
+        return None
 
 
 class arXivItem(BaseModel):
