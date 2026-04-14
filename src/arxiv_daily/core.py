@@ -1,6 +1,6 @@
 from . import llm_client
 from .agents import arXivSummarizationAgent, PaperState
-from .utils import get_daily_arxiv_updates, arXivItem
+from .utils import get_daily_arxiv_updates, arXivItem, get_arxiv_metadata
 
 from collections import defaultdict
 from typing import Dict, List, Any, Optional, Union, Set
@@ -79,3 +79,16 @@ def _run_summarize(
     # Run the workflow
     initial_state = PaperState(source=arxivid)
     return app.invoke(initial_state)
+
+
+def _get_metadata(arxivid: str) -> Optional[Dict[str, Any]]:
+    """
+    Fetch metadata for a given arXiv paper.
+
+    Args:
+        arxivid: arXiv identifier
+
+    Returns:
+        Dict with title, authors, subjects, abstract, comments, date; None if failed.
+    """
+    return get_arxiv_metadata(arxivid)
