@@ -1,7 +1,10 @@
-from .core import _run_new, _run_summarize
+from .core import _run_new, _run_summarize, _get_metadata
 from .chains import OrganizedSummary
+from .utils import parse_arxiv_id, build_markdown_content
 
 from typing import Optional, Literal, List
+from pathlib import Path
+from datetime import datetime
 import typer
 from rich.console import Console
 from rich.logging import RichHandler
@@ -126,6 +129,60 @@ def new(
             console.print(f"📝 {abstract_display}\n")
 
 
+@app.command(help="Fetch metadata for an arXiv paper by its identifier.")
+def meta(
+    arxivid: str = typer.Argument(..., help="arXiv identifier (e.g., 2401.12345, arXiv:2401.12345)."),
+) -> None:
+    """
+    Fetch and display metadata for a given arXiv paper.
+    """
+    try:
+        arxiv_id = parse_arxiv_id(arxivid)
+    except ValueError as e:
+        console.print(f"[bold red]Failed to fetch metadata for {arxivid}[/bold red]")
+        raise typer.Exit(1)
+
+    metadata = _get_metadata(arxiv_id)
+    if metadata is None:
+        console.print(f"[bold red]Failed to fetch metadata for {arxiv_id}[/bold red]")
+        raise typer.Exit(1)
+
+    console.print(Rule(arxiv_id, style="dim"))
+
+    # Title
+    title = metadata.get("title", "")
+    if title:
+        console.print(f"📄 [bold]{title}[/bold]")
+
+    # Authors
+    authors = metadata.get("authors", [])
+    if authors:
+        authors_display = ", ".join(authors[:3])
+        if len(authors) > 3:
+            authors_display += ", et al."
+        console.print(f"👥 {authors_display}")
+
+    # Date
+    date = metadata.get("date", "")
+    if date:
+        console.print(f"📅 {date}")
+
+    # Subjects
+    subjects = metadata.get("subjects", [])
+    if subjects:
+        console.print(f"🏷️  {'; '.join(subjects)}")
+
+    # Comments
+    comments = metadata.get("comments", "")
+    if comments:
+        console.print(f"💬 [italic dim]{comments}[/italic dim]")
+
+    # Abstract
+    abstract = metadata.get("abstract", "")
+    if abstract:
+        console.print(f"📝 {abstract}")
+
+
 @app.command(help="Extract key insights from arXiv paper.")
 def summarize(
     arxivid: str = typer.Argument(..., help="arXiv identifier."),
@@ -134,9 +191,16 @@ def summarize(
     temperature: Optional[float] = typer.Option(None, "--temp", "-t", help="Sampling temperature."),
     max_tokens: Optional[int] = typer.Option(None, "--max-tokens", help="Maximum number of output tokens."),
     reasoning: Optional[bool] = typer.Option(None, "--reasoning", help="Controls the reasoning/thinking mode for supported models."),
+    output: Optional[str] = typer.Option(None, "--output", "-o", envvar="ARXIV_SUMMARIZE_OUTPUT", help="Output directory path (Obsidian-friendly)."),
 ) -> None:
+    try:
+        arxiv_id = parse_arxiv_id(arxivid)
+    except ValueError as e:
+        console.print(f"[bold red]Failed to fetch metadata for {arxivid}[/bold red]")
+        raise typer.Exit(1)
+
     results = _run_summarize(
-        arxivid=arxivid,
+        arxivid=arxiv_id,
         model=model,
         model_provider=model_provider,
         temperature=temperature,
@@ -144,13 +208,31 @@ def summarize(
         reasoning=reasoning
     )
 
-    # Output results
-    console.print(Rule("Organized Summary", style="dim"))
-    summary: OrganizedSummary = results.get("organized_summary", "") 
+    summary: OrganizedSummary = results.get("organized_summary") or OrganizedSummary()
+
+    # Console output
+    console.print(Rule(arxiv_id, style="dim"))
     for k, v in summary.model_dump().items():
         name = k.replace("_", " ").title()
-        console.print(f"{name}: ", style="bold white")
-        console.print(f"{v}\n", style="white")
+        console.print(f"[bold cyan]{name}[/bold cyan]", style="bold")
+        console.print(f"{v}\n")
+
+    # Write to file
+    if output:
+        # Extract metadata
+        paper_meta = _get_metadata(arxiv_id) or {}
+
+        # Build markdown content
+        md_content = build_markdown_content(
+            arxiv_id=arxiv_id,
+            paper_meta=paper_meta,
+            summary=summary,
+        )
+
+        md_file = Path(output) / f"{arxiv_id}.md"
+        md_file.parent.mkdir(parents=True, exist_ok=True)
+        md_file.write_text(md_content, encoding="utf-8")
+        console.print(f"📝 Saved to [green]{md_file}[/green]")
 
 
 if __name__ == "__main__":
