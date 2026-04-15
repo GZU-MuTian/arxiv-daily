@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup, Tag
 from bs4.element import NavigableString
 from datetime import datetime
 from uuid import uuid4
+import frontmatter
 import requests
 import logging
 import time
@@ -54,7 +55,7 @@ def build_markdown_content(
         summary: OrganizedSummary object with the paper summary sections.
 
     Returns:
-        Formatted Markdown content string.
+        Formatted Markdown content string with YAML frontmatter.
     """
     title = paper_meta.get("title", "")
     authors = paper_meta.get("authors", [])
@@ -79,21 +80,23 @@ def build_markdown_content(
     # Format authors
     authors_str = ", ".join(authors[:3]) + (", et al." if len(authors) > 3 else "")
 
-    # Build frontmatter and title
     subjects_str = ", ".join(subjects) if subjects else ""
-    md_content = f"""---
-title: "{title}"
-arxivId: "{arxiv_id}"
-authors: "{authors_str}"
-date: {pub_date.replace('/', '-') if pub_date else ''}
-tags:
-{chr(10).join(f'  - {t}' for t in tags)}
-comments: "{comments}"
-subjects: "{subjects_str}"
-abstract: "{abstract}"
----
-# AI Summary
-"""
+
+    # Create post object with metadata
+    post = frontmatter.Post("")
+    post.metadata.update({
+        "title": title,
+        "arxivId": arxiv_id,
+        "authors": authors_str,
+        "date": pub_date.replace('/', '-') if pub_date else "",
+        "tags": tags,
+        "comments": comments,
+        "subjects": subjects_str,
+        "abstract": abstract,
+    })
+
+    # Build body content
+    body_content = "# AI Summary\n"
 
     # Summary sections
     if hasattr(summary, "model_dump"):
@@ -105,9 +108,12 @@ abstract: "{abstract}"
 
     for k, v in summary_dict.items():
         name = k.replace("_", " ").title()
-        md_content += f"## {name}\n{v}\n"
+        body_content += f"## {name}\n{v}\n"
 
-    return md_content
+    # Set post content and serialize to string
+    post.content = body_content
+    
+    return frontmatter.dumps(post)
 
 
 def url_requests_safely(
