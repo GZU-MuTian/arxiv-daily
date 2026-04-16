@@ -45,6 +45,9 @@ export ARXIV_CATEGORY="cs.AI,astro-ph.HE,hep-ph"
 
 # Default output directory for summaries (optional)
 export ARXIV_SUMMARIZE_OUTPUT="/path/to/your/obsidian/vault"
+
+# Default output directory for knowledge graph concepts (optional)
+export ARXIV_EXTRACTOR_OUTPUT="/path/to/your/obsidian/vault/concepts"
 ```
 
 ## Usage Guide
@@ -52,7 +55,7 @@ export ARXIV_SUMMARIZE_OUTPUT="/path/to/your/obsidian/vault"
 ### Command-Line Interface
 
 `arxiv-daily` includes a CLI named `arXiv`.
-> 🔧 Tip: Run `arXiv --help` for an overview, or `arXiv <command> --help` for command-specific options.
+> Tip: Run `arXiv --help` for an overview, or `arXiv <command> --help` for command-specific options.
 
 Fetch the latest preprints from any arXiv channel with beautiful terminal formatting:
 ```bash
@@ -94,6 +97,32 @@ arXiv summarize 2401.12345
 arXiv summarize 2401.12345 -o /path/to/output
 ```
 
+**Extract Knowledge Graph Relationships:**
+```bash
+# Basic extraction with default model (DeepSeek)
+arXiv extractor 2401.12345
+
+# Specify model and provider
+arXiv extractor 2401.12345 --model deepseek-chat --provider deepseek
+
+# Short form
+arXiv extractor 2401.12345 -m deepseek-chat -p deepseek -t 0.5
+
+# Save concept files to directory (if ARXIV_EXTRACTOR_OUTPUT is set)
+arXiv extractor 2401.12345
+
+# Save to specific directory
+arXiv extractor 2401.12345 -o /path/to/concepts
+```
+
+The extractor command analyzes paper summaries and extracts key concepts with their relationships, creating a structured knowledge graph. Each concept is categorized and linked to the source paper, making it perfect for building a personal research knowledge base.
+
+**Obsidian Integration:**
+When using the `-o` option, concepts are saved as individual Markdown files with:
+- YAML frontmatter for metadata
+- Obsidian-style links (`[[arxiv-id]]`)
+- Automatic deduplication (same paper won't be added twice)
+
 Adjust verbosity for debugging or quiet runs:
 ```bash
 # Production - errors only (default)
@@ -103,14 +132,51 @@ arXiv --log-level ERROR new
 arXiv -v DEBUG new
 ```
 
+## Knowledge Graph Extraction
+
+The `arXiv extractor` command builds a structured knowledge base by extracting key concepts and relationships from academic papers.
+
+### Concept Categories
+
+The extractor classifies concepts into these research domains:
+
+- **galaxy-physics**: Galaxy formation, evolution, dynamics
+- **cosmology**: Dark matter, cosmic microwave background, large-scale structure
+- **earth-planetary**: Exoplanets, planetary atmospheres, astrobiology
+- **high-energy-astrophysics**: Black holes, neutron stars, gamma-ray bursts
+- **solar-stellar**: Stellar evolution, solar physics, star formation
+- **statistics-ai**: Machine learning, statistical methods, neural networks
+- **numerical-simulation**: N-body simulations, hydrodynamics, radiative transfer
+- **instrumental-design**: Telescopes, spectrographs, detectors
+- **astronomical-events**: Supernovae, gravitational waves, fast radio bursts
+
+### Example Workflow
+
+```bash
+# 1. Generate summary first
+arXiv summarize 2401.12345 -o ./summaries
+
+# 2. Extract knowledge graph
+arXiv extractor 2401.12345 -o ./concepts
+```
+
+### Integration with Obsidian
+
+The extractor is designed to work seamlessly with Obsidian:
+
+1. **Backlinks**: Use `[[arxiv-id]]` syntax for paper references
+2. **Tags**: Automatic tagging for easy filtering
+3. **Graph View**: Visualize connections between papers and concepts
+4. **Search**: Find all papers mentioning a specific concept
+
 ## Project Structure
 
 ```text
 arxiv_daily/
 ├── agents.py        # LangGraph agents for complex summarization workflows
-├── chains.py        # LangChain chains for LLM interactions
+├── chains.py        # LangChain chains for LLM interactions (includes KnowledgeGraphExtractor)
 ├── cli.py           # Command-line interface built with Typer
-├── core.py          # Core functions (_run_new, _run_summarize)
+├── core.py          # Core functions (_run_new, _run_summarize, _run_extractor)
 ├── llm_client.py    # Unified LLM provider interface
 ├── utils.py         # Utility functions
 └── __init__.py

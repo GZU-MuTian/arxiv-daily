@@ -116,6 +116,48 @@ def build_markdown_content(
     return frontmatter.dumps(post)
 
 
+def create_concept_file(
+    concept: str,
+    category: str,
+) -> str:
+    """
+    Create initial Markdown content for a new concept note in Obsidian.
+
+    Args:
+        concept: The concept name.
+        category: The category of the concept.
+
+    Returns:
+        Formatted Markdown content string with YAML frontmatter.
+    """
+    post = frontmatter.Post("")
+    post.metadata.update({
+        "category": category,
+        "tags": ["concept"],
+    })
+    post.content = f"# References"
+    return frontmatter.dumps(post)
+
+
+def format_concept_entry(
+    arxiv_id: str,
+    relation: str,
+    description: str,
+) -> str:
+    """
+    Format a single concept entry line.
+
+    Args:
+        arxiv_id: The arXiv identifier (will be used as Obsidian link).
+        relation: The relation type.
+        description: The description of the relationship.
+
+    Returns:
+        Formatted entry line.
+    """
+    return f"- [[{arxiv_id}]] {relation}: {description}"
+
+
 def url_requests_safely(
     url: str,
     max_retries: int = 3,

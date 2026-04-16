@@ -101,13 +101,13 @@ def OrganizedSummaryChain():
 # --- KnowledgeGraphExtractor ---
 
 class Relationship(BaseModel):
-    concept: str = Field(..., description="Concept name (3-4 words, singular form, lowercase).")
+    concept: str = Field(..., description="Concept name (3-4 words, singular form, lowercase, words joined by hyphens).")
     category: str = Field(..., description="Category class (e.g., galaxy-physics, cosmology, statistics-ai, numerical-simulation, instrumental-design, astronomical-events).")
     relation: str = Field(..., description="Predicate describing what this paper does with the concept (e.g., detects, constrains, simulates, analyzes, discovers).")
-    evidence: str = Field(..., description="Exact sentence or phrase from the summary that supports this relationship.")
+    description: str = Field(..., description="1-2 sentence summary describing how this relationship manifests in the paper, written in your own words.")
 
 class KnowledgeGraphExtraction(BaseModel):
-    relationships: List[Relationship] = Field(default_factory=list, description="List of relationships from this paper to concepts, with category and supporting evidence.")
+    relationships: List[Relationship] = Field(default_factory=list, description="List of relationships from this paper to concepts, with category, relation, and description.")
 
 knowledge_graph_parser = PydanticOutputParser(pydantic_object=KnowledgeGraphExtraction)
 
@@ -139,8 +139,8 @@ Adhere to these guidelines:
 
 3. **Relationship Attributes**:
    - `relation`: What this paper does with the concept (e.g., introduces, utilizes, detects, constrains, simulates, analyzes, discovers, validates, measures)
-   - `evidence`: The exact sentence or phrase from the summary that supports this relationship
-   - Extract 3-8 meaningful relationships with clear textual evidence
+   - `description`: 1-2 sentence summary describing how this relationship manifests in the paper, written in your own words (not a direct quote)
+   - Extract 3-8 meaningful relationships with clear descriptions
 
 4. **Output Format**:
    - Return valid JSON that can be parsed
