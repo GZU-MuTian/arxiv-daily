@@ -155,7 +155,7 @@ def format_concept_entry(
     Returns:
         Formatted entry line.
     """
-    return f"- [[{arxiv_id}]] {relation}: {description}"
+    return f"- [[{arxiv_id}]] #{relation}: {description}"
 
 
 def url_requests_safely(
