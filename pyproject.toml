@@ -9,6 +9,7 @@ authors = [
 requires-python = ">=3.11"
 dependencies = [
     "beautifulsoup4>=4.14.3",
+    "docling>=2.93.0",
     "langchain>=1.2.0",
     "langchain-community>=0.4.1",
     "langchain-deepseek>=1.0.1",
