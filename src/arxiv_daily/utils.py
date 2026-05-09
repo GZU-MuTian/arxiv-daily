@@ -3,6 +3,10 @@ Module to fetch and parse daily arXiv updates for a specified channel.
 """
 from langchain_core.documents import Document
 from langchain_text_splitters import MarkdownHeaderTextSplitter
+from docling.datamodel.base_models import InputFormat
+from docling.datamodel.pipeline_options import VlmConvertOptions, VlmPipelineOptions
+from docling.document_converter import DocumentConverter, PdfFormatOption
+from docling.pipeline.vlm_pipeline import VlmPipeline
 
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, TypedDict, NamedTuple, Any
@@ -645,4 +649,42 @@ def generate_toc(docs: List[Document]) -> List[TocEntry]:
             # Append the TOC entry
             toc.append(entry)
     return toc
+
+
+def pdf_to_markdown(source_url: str, page_batch_size: int = 32) -> str:
+    """
+    Convert a PDF to Markdown using Docling's VLM pipeline.
+
+    Args:
+        source_url: URL or local path to the PDF file.
+        page_batch_size: Number of pages to process per batch.
+
+    Returns:
+        Markdown string with image placeholders.
+    """
+    vlm_options = VlmConvertOptions.from_preset("smoldocling")
+    pipeline_options = VlmPipelineOptions(
+        vlm_options=vlm_options,
+        page_batch_size=page_batch_size,
+    )
+    converter = DocumentConverter(
+        format_options={
+            InputFormat.PDF: PdfFormatOption(
+                pipeline_cls=VlmPipeline,
+                pipeline_options=pipeline_options,
+            ),
+        }
+    )
+
+    logging.getLogger("docling").setLevel(logging.WARNING)
+
+    logger.info(f"Converting PDF: {source_url}")
+    try:
+        result = converter.convert(source_url)
+    except Exception as e:
+        raise RuntimeError(f"Failed to convert PDF: {source_url}: {e}") from e
+
+    doc = result.document
+    md_text = doc.export_to_markdown(image_mode="placeholder")
+    return md_text
 
