@@ -2,7 +2,7 @@
 PDF Summarization Agent.
 """
 from .chains import PaperCompressionChain, OrganizedSummaryChain, OrganizedSummary
-from .utils import url_requests_safely, html_to_markdown, markdown_splitter, parse_arxiv_id
+from .utils import url_requests_safely, html_to_markdown, markdown_splitter, parse_arxiv_id, pdf_to_markdown
 
 from langgraph.graph import StateGraph, START, END
 
@@ -22,7 +22,8 @@ class PaperState(BaseModel):
     Represents the state of the summarization workflow.
     """
     source: str = Field(..., description="Path to the input PDF file.")
-    md_text: str = Field(default="", description="Raw markdown text extracted from HTML.")
+    source_type: str = Field(default="html", description="Source type: 'html' or 'pdf'.")
+    md_text: str = Field(default="", description="Raw markdown text extracted from HTML or PDF.")
     summary: str = Field(default="", description="Generated summary of the paper.")
     organized_summary: Optional[OrganizedSummary] = Field(default=None, description="Organized Summary")
 
@@ -30,30 +31,58 @@ class PaperState(BaseModel):
 
 def resolve_source(state: PaperState) -> Dict[str, Any]:
     """
-    Resolve ambiguous source string into a concrete arXiv HTML URL.
+    Resolve the source string and determine whether to use HTML or PDF parsing.
 
-    Args:
-        state (PaperState): Current state containing the source string.
+    Supports:
+    - arXiv ID: check HTML first, fall back to PDF.
+    - HTML URL: use directly.
+    - PDF URL or local file path: route to PDF parsing.
 
     Returns:
-        Dict[str, Any]: Dict[str, Any]: Updated state with 'source' set to the valid HTML URL.
+        Dict with 'source' (resolved URL/path) and 'source_type' ('html' or 'pdf').
     """
     src = state.source.strip()
 
+    # Already an HTML URL
+    if src.startswith("http") and "/html/" in src:
+        return {"source": src, "source_type": "html"}
+
+    # Already a PDF URL or local file
+    if src.endswith(".pdf") or "/pdf/" in src:
+        return {"source": src, "source_type": "pdf"}
+
+    # arXiv ID — try HTML first, fall back to PDF
     arxiv_id = parse_arxiv_id(src)
     logger.info(f"Detected arXiv ID: {arxiv_id}.")
 
     html_url = f"https://arxiv.org/html/{arxiv_id}"
+    try:
+        response = requests.head(html_url, timeout=10)
+        if response.status_code == 200:
+            return {"source": html_url, "source_type": "html"}
+    except requests.RequestException as e:
+        logger.warning(f"HTML HEAD request failed for {html_url}: {e}")
 
-    # Use HEAD request to check existence
-    response = requests.head(html_url, timeout=10)
-    if response.status_code == 200:
-        return {"source": html_url}
-    else:
-        raise requests.HTTPError(
-            f"URL request failed for {html_url}: "
-            f"HTTP {response.status_code} {response.reason}"
-        )
+    pdf_url = f"https://arxiv.org/pdf/{arxiv_id}"
+    logger.info(f"HTML unavailable, falling back to PDF: {pdf_url}")
+    return {"source": pdf_url, "source_type": "pdf"}
+
+
+def parse_pdf(state: PaperState) -> Dict[str, Any]:
+    """
+    Parse a PDF file using Docling and convert to Markdown.
+
+    Args:
+        state (PaperState): Current state containing the PDF source.
+
+    Returns:
+        Dict[str, Any]: Updated state with 'md_text' populated.
+    """
+    try:
+        md_text = pdf_to_markdown(state.source)
+    except Exception as e:
+        raise RuntimeError(f"Failed to convert PDF to Markdown: {e}") from e
+    return {"md_text": md_text.strip()}
 
 def parse_html_page(state: PaperState) -> Dict[str, Any]:
     """
@@ -178,13 +207,19 @@ def arXivSummarizationAgent():
     # Add nodes
     workflow.add_node("resolve_source", resolve_source)
     workflow.add_node("parse_html_page", parse_html_page)
+    workflow.add_node("parse_pdf", parse_pdf)
     workflow.add_node("summarize_paper", summarize_paper)
     workflow.add_node("organize_summarization", organize_summarization)
 
     # Define the edges/flow between nodes
     workflow.add_edge(START, "resolve_source")
-    workflow.add_edge("resolve_source", "parse_html_page")
+    workflow.add_conditional_edges(
+        "resolve_source",
+        lambda state: state.source_type,
+        {"html": "parse_html_page", "pdf": "parse_pdf"},
+    )
     workflow.add_edge("parse_html_page", "summarize_paper")
+    workflow.add_edge("parse_pdf", "summarize_paper")
     workflow.add_edge("summarize_paper", "organize_summarization")
     workflow.add_edge("organize_summarization", END)
 
