@@ -75,7 +75,13 @@ def new(
         "--category", "-t",
         envvar="ARXIV_CATEGORY",
         help="Filter by arXiv category ID(s)."
-    )
+    ),
+    output: Optional[str] = typer.Option(
+        None,
+        "--output", "-o",
+        envvar="ARXIV_NEW_OUTPUT",
+        help="Output directory for Obsidian daily note."
+    ),
 ) -> None:
     """
     Main CLI entry point to fetch daily arXiv articles for the specified channel
@@ -129,6 +135,24 @@ def new(
                 article.abstract[:800] + "..." if len(article.abstract) > 800 else article.abstract
             )
             console.print(f"📝 {abstract_display}\n")
+
+    # Save to Obsidian daily note
+    if output:
+        today_str = datetime.today().strftime("%Y-%m-%d")
+        daily_file = Path(output) / f"{today_str}.md"
+        daily_file.parent.mkdir(parents=True, exist_ok=True)
+
+        # Build daily note content
+        seen: set[str] = set()
+        lines: List[str] = []
+        for articles in grouped_articles.values():
+            for article in articles:
+                if article.arXivID not in seen:
+                    seen.add(article.arXivID)
+                    lines.append(f"- [[{parse_arxiv_id(article.arXivID)}]] {article.title}")
+
+        daily_file.write_text("\n".join(lines), encoding="utf-8")
+        console.print(f"📝 Daily note saved to [green]{daily_file}[/green]")
 
 
 @app.command(help="Fetch metadata for an arXiv paper by its identifier.")
