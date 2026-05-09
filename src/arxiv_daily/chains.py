@@ -5,6 +5,7 @@ from . import llm_client
 
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser, PydanticOutputParser
+from langchain_classic.output_parsers import OutputFixingParser
 
 from pydantic import BaseModel, Field
 from typing import List
@@ -54,7 +55,7 @@ class OrganizedSummary(BaseModel):
 organized_summary_parser = PydanticOutputParser(pydantic_object=OrganizedSummary)
 
 _SYSTEM_ORGANIZER_PROMPT = """
-You are an AI specializing in astrophysics, tasked with reorganizing astrophysics paper summaries. 
+You are an AI specializing in astrophysics, tasked with reorganizing astrophysics paper summaries.
 Adhere to these guidelines:
 
 1. Reorganize the summary strictly into the following key areas and nothing else:
@@ -79,9 +80,11 @@ Adhere to these guidelines:
 
 4. Ensure as much as possible information from the original summary is included.
 5. Do not add any new information beyond what is already in the summary.
-6. Retain any LaTeX formulas present in the original summary.
-7. Keep technical jargon intact, as it's meant for astrophysics researchers.
-8. Ensure the output is valid JSON that can be parsed. Be careful with escape characters - use proper JSON escaping for quotes, backslashes, and other special characters.\n\n{format_instructions}
+6. Keep technical jargon intact, as it's meant for astrophysics researchers.
+7. You MUST convert all LaTeX formulas into readable plain text descriptions. Do NOT include raw LaTeX markup in your output.
+8. Ensure the output is valid JSON that can be parsed. Be careful with escape characters - use proper JSON escaping for quotes, backslashes, and other special characters.
+
+\n\n{format_instructions}
 """
 
 _HUMAN_ORGANIZER_PROMPT = """
@@ -96,7 +99,8 @@ ORGANIZER_PROMPT = ChatPromptTemplate.from_messages([
 def OrganizedSummaryChain():
     llm = llm_client.getLLM()
     logger.info("LLM configuration: {}".format(llm.model_dump(exclude_unset=True)))
-    return ORGANIZER_PROMPT | llm | organized_summary_parser
+    parser = OutputFixingParser.from_llm(parser=organized_summary_parser, llm=llm)
+    return ORGANIZER_PROMPT | llm | parser
 
 # --- KnowledgeGraphExtractor ---
 
@@ -162,4 +166,5 @@ KNOWLEDGE_GRAPH_PROMPT = ChatPromptTemplate.from_messages([
 def KnowledgeGraphExtractor():
     llm = llm_client.getLLM()
     logger.info("LLM configuration: {}".format(llm.model_dump(exclude_unset=True)))
-    return KNOWLEDGE_GRAPH_PROMPT | llm | knowledge_graph_parser
+    parser = OutputFixingParser.from_llm(parser=knowledge_graph_parser, llm=llm)
+    return KNOWLEDGE_GRAPH_PROMPT | llm | parser
