@@ -139,7 +139,7 @@ def create_concept_file(
         "category": category,
         "tags": ["concept"],
     })
-    post.content = f"# References"
+    post.content = "# References"
     return frontmatter.dumps(post)
 
 
@@ -197,7 +197,7 @@ def url_requests_safely(
         if attempt < max_retries - 1:
             time.sleep(retry_delay)
 
-    raise RuntimeError("All %d attempts failed for URL: %s", max_retries, url)
+    raise RuntimeError(f"All {max_retries} attempts failed for URL: {url}")
 
 
 def get_arxiv_metadata(arxivid: str) -> Optional[Dict[str, Any]]:
@@ -253,7 +253,7 @@ def get_arxiv_metadata(arxivid: str) -> Optional[Dict[str, Any]]:
             "date": date_str,
         }
     except Exception as e:
-        logger.warning(f"Failed to fetch metadata for {arxivid}: {e}")
+        logger.warning("Failed to fetch metadata for %s: %s", arxivid, e)
         return None
 
 
@@ -305,15 +305,15 @@ def get_daily_arxiv_updates(channel: str = "astro-ph") -> List[arXivItem]:
         scraping_date = date_match.group(1).split(',')[1].strip()
         try:
             # Parse date string into a date object
-            date = datetime.strptime(scraping_date, "%d %B %Y").date()
+            parsed_date = datetime.strptime(scraping_date, "%d %B %Y").date()
             today = datetime.today().date()
-            if date != today:
+            if parsed_date != today:
                 logger.info("No new updates for today (scraping date: %s).", today)
                 return articles
-        except:
-            logger.warning(f"{scraping_date} parsing failed.")
+        except ValueError:
+            logger.warning("Date parsing failed: %s", scraping_date)
     else:
-        logger.warning(f"Failed to extract date from header: {h3_tags[0].text}")
+        logger.warning("Failed to extract date from header: %s", h3_tags[0].text)
 
     # Parse the number of new submissions
     number_pattern = re.compile(r'showing \d+ of (\d+) entries')
@@ -387,8 +387,8 @@ def get_daily_arxiv_updates(channel: str = "astro-ph") -> List[arXivItem]:
                     href = "https://arxiv.org" + href
                 formats_dict[title_attr] = href
 
-        except Exception as e:
-            logger.error("Error parsing article entry (arXiv ID: %s)", arXivID)
+        except Exception:
+            logger.exception("Error parsing article entry")
             continue
 
         # --- Construct and store the item ---
@@ -454,7 +454,7 @@ def parse_ltx_para(tag: Tag) -> str:
                 parts.append(parse_ltx_para(child))
         else:
             # Log unexpected node types for debugging
-            logger.debug(f"Unexpected node type in paragraph: {type(child)}")
+            logger.debug("Unexpected node type in paragraph: %s", type(child))
 
     # Normalize whitespace for prose; math formulas from alttext are assumed clean
     text = "".join(parts)
@@ -489,7 +489,7 @@ def html_to_markdown(html: str) -> str:
 
     # ====== 3. Main Content Sections ======
     sections = soup.select("section.ltx_section, section.ltx_subsection, section.ltx_subsubsection")
-    logger.debug(f"Found {len(sections)} content sections to process")
+    logger.debug("Found %d content sections to process", len(sections))
 
     for section in sections:
         selector = "h2.ltx_title, h3.ltx_title, h4.ltx_title, h5.ltx_title, h6.ltx_title"
@@ -499,7 +499,7 @@ def html_to_markdown(html: str) -> str:
             heading_text = parse_ltx_para(heading_tag)
             level = {'h2': 2, 'h3': 3, 'h4': 4, 'h5': 5, 'h6': 6}.get(heading_tag.name, 2)
             md_lines.append(f"{'#' * level} {heading_text}\n")
-            logger.debug(f"Processed heading (level {level}): {heading_text}")
+            logger.debug("Processed heading (level %d): %s", level, heading_text)
 
         # Process paragraphs directly under this section
         # for para_div in section.find_all("div", class_="ltx_para"):
@@ -539,7 +539,7 @@ def markdown_splitter(
         markdown_text (str): markdown text.
         headers_to_split_on (Optional[List[Tuple[str, str]]]): List of (header_prefix, header_name) tuples. Defaults to H1–H4.
         return_each_line (bool): Whether to split each line as a separate document. Default: True.
-        strip_headers (bool: Strip split headers from the content of the chunk
+        strip_headers (bool): Strip split headers from the content of the chunk
         create_at (Optional[str]): Creation date in 'YYYY-MM-DD'. Defaults to today.
         create_by: Creator identifier.
 
@@ -566,7 +566,7 @@ def markdown_splitter(
     try:
         raw_docs = splitter.split_text(markdown_text)
     except Exception as e:
-        logger.error(f"Failed to split markdown: {e}")
+        logger.error("Failed to split markdown: %s", e)
         return documents
 
     for doc in raw_docs:
@@ -596,7 +596,7 @@ def markdown_splitter(
         if idx < len(documents) - 1:
             doc.metadata["next_paragraph_id"] = documents[idx + 1].metadata["paragraph_id"]
 
-    logger.info(f"Parsed {len(documents)} chunks'")
+    logger.info("Parsed %d chunks", len(documents))
     return documents
 
 
@@ -678,7 +678,7 @@ def pdf_to_markdown(source_url: str, page_batch_size: int = 32) -> str:
 
     logging.getLogger("docling").setLevel(logging.WARNING)
 
-    logger.info(f"Converting PDF: {source_url}")
+    logger.info("Converting PDF: %s", source_url)
     try:
         result = converter.convert(source_url)
     except Exception as e:
